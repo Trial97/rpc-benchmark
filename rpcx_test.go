@@ -7,39 +7,37 @@ import (
 	"rpc-bench/airc"
 	"testing"
 
-	"github.com/keegancsmith/rpc"
+	"github.com/smallnest/rpcx/client"
+	"github.com/smallnest/rpcx/server"
 )
 
-func startRPCServerWithContext() {
-	rpc.Register(new(airc.Arith))
+func startRPCxServer() {
+	s := server.NewServer()
+	s.Register(new(airc.Arith), "")
 
 	var l net.Listener
 	l, serverAddr = listenTCP()
 	log.Println("Test RPC server listening on", serverAddr)
-	go rpc.Accept(l)
+	go s.ServeListener("tcp", l)
 }
 
-func BenchmarkRPCCallWithContext(b *testing.B) {
-	startRPCServerWithContext()
-	client, err := rpc.Dial("tcp", serverAddr)
+func BenchmarkRPCXCall(b *testing.B) {
+	startRPCxServer()
+
+	c := client.NewClient(client.DefaultOption)
+	err := c.Connect("tcp", serverAddr)
 	if err != nil {
 		b.Fatal("dialing", err)
 	}
-	defer client.Close()
+	defer c.Close()
 
-	// Synchronous calls
 	ctx := context.Background()
-	// ctx2, cancel := context.WithCancel(ctx)
 	args := &airc.Args{7, 8}
 	reply := new(airc.Reply)
 
-	// go func() {
-	// time.Sleep(time.Second)
-	// cancel()
-	// }()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = client.Call(ctx, "Arith.Add", args, reply)
+		err = c.Call(ctx, "Arith", "Add", args, reply)
 		if err != nil {
 			b.Errorf("Add: expected no error but got string %q", err.Error())
 		}
